@@ -16,15 +16,18 @@ class ResticBackup:
         if repository_path is None:
             repository_path = os.getenv("RESTIC_REPOSITORY", "./restic-repo")
         self.repository_path = repository_path
-        self.RESTIC_PASSWORD = os.getenv("RESTIC_PASSWORD", "")
-        self.AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID", "")
-        self.AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY", "")
-        print(
-            f"""repository_path: {self.repository_path},
-            RESTIC_PASSWORD: {self.RESTIC_PASSWORD}, 
-            AWS_ACCESS_KEY_ID: {self.AWS_ACCESS_KEY_ID},
-            AWS_SECRET_ACCESS_KEY: {self.AWS_SECRET_ACCESS_KEY}"""
-        )
+
+        self.RESTIC_PASSWORD = os.getenv("RESTIC_PASSWORD")
+        if not self.RESTIC_PASSWORD:
+            raise ValueError("Environment variable RESTIC_PASSWORD is not set")
+
+        self.AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
+        if not self.AWS_ACCESS_KEY_ID:
+            raise ValueError("Environment variable AWS_ACCESS_KEY_ID is not set")
+
+        self.AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+        if not self.AWS_SECRET_ACCESS_KEY:
+            raise ValueError("Environment variable AWS_SECRET_ACCESS_KEY is not set")
 
     def initialize_backup(self):
         """Initialize the backup repository if it doesn't exist."""
