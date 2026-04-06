@@ -5,6 +5,7 @@ import hashlib
 import logging
 import os
 import time
+from datetime import datetime
 
 import dropbox
 from dotenv import load_dotenv
@@ -22,6 +23,7 @@ def get_access_token():
     DROPBOX_CLIENT_SECRET = os.getenv("DROPBOX_CLIENT_SECRET")
 
     if not all([DROPBOX_REFRESH_TOKEN, DROPBOX_CLIENT_ID, DROPBOX_CLIENT_SECRET]):
+        logging.error("Fehlende Dropbox-Umgebungsvariablen")
         raise ValueError("Fehlende Dropbox-Umgebungsvariablen")
 
     data = {
@@ -31,8 +33,13 @@ def get_access_token():
         "client_secret": DROPBOX_CLIENT_SECRET,
     }
 
-    r = requests.post(DROPBOX_TOKEN_URL, data=data, timeout=60)
-    r.raise_for_status()
+    try:
+        r = requests.post(DROPBOX_TOKEN_URL, data=data, timeout=60)
+        r.raise_for_status()
+    except requests.RequestException as e:
+        logging.error(f"Error fetching Dropbox access token: {e}")
+        raise
+
     token = r.json()["access_token"]
     return token
 
@@ -51,7 +58,7 @@ def list_folder(dbx, folder, subfolder):
         with stopwatch("list_folder"):
             res = dbx.files_list_folder(path)
     except dropbox.exceptions.ApiError as err:
-        logging.info(f"Folder listing failed for {path} -- assumed empty: {err}")
+        logging.error(f"Folder listing failed for {path} -- assumed empty: {err}")
         return {}
     else:
         rv = {}
@@ -72,7 +79,7 @@ def download(dbx, folder, subfolder, name):
         try:
             md, res = dbx.files_download(path)
         except dropbox.exceptions.HttpError as err:
-            logging.info(f"*** HTTP error {err}")
+            logging.error(f"*** HTTP error {err}")
             return None
     data = res.content
     # print(len(data), 'bytes; md:', md)
@@ -114,9 +121,17 @@ def calculate_content_hash(file_path):
 
 
 if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+    logs_dir = "logs"
+    os.makedirs(logs_dir, exist_ok=True)
+    log_file = os.path.join(
+        logs_dir, f"backup_{datetime.now().strftime('%Y-%m-%d')}.log"
     )
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s",
+        handlers=[logging.FileHandler(log_file), logging.StreamHandler()],
+    )
+
     TOKEN = get_access_token()
     dbx = dropbox.Dropbox(TOKEN)
 
@@ -168,6 +183,9 @@ if __name__ == "__main__":
         calculated_hash = calculate_content_hash(local_path)
 
         if calculated_hash != expected_hash:
+            logging.error(
+                f"Hash mismatch for {file_name}: expected {expected_hash}, got {calculated_hash}"
+            )
             raise ValueError(
                 f"Hash mismatch for {file_name}: expected {expected_hash}, got {calculated_hash}"
             )
@@ -178,6 +196,7 @@ if __name__ == "__main__":
     restic = ResticBackup()
     restic_result = restic.add_to_backup(downloads_dir)
     if not restic_result:
+        logging.error("Restic backup failed, aborting further steps")
         raise RuntimeError("Restic backup failed, aborting further steps")
     logging.info("Backup completed successfully!")
 
