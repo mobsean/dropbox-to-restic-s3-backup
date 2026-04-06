@@ -8,8 +8,11 @@ import os
 import time
 
 import dropbox
+from dotenv import load_dotenv
 from restic_backup import ResticBackup
 import requests
+
+load_dotenv()
 
 
 def get_access_token():
