@@ -20,7 +20,8 @@ class ResticBackup:
         self.AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID", "")
         self.AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY", "")
         print(
-            f"""RESTIC_PASSWORD: {self.RESTIC_PASSWORD}, 
+            f"""repository_path: {self.repository_path},
+            RESTIC_PASSWORD: {self.RESTIC_PASSWORD}, 
             AWS_ACCESS_KEY_ID: {self.AWS_ACCESS_KEY_ID},
             AWS_SECRET_ACCESS_KEY: {self.AWS_SECRET_ACCESS_KEY}"""
         )
