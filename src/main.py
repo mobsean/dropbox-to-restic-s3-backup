@@ -176,7 +176,9 @@ if __name__ == "__main__":
     # Add the year folder to restic backup
     logging.info(f"Adding {downloads_dir} to restic backup...")
     restic = ResticBackup()
-    restic.add_to_backup(downloads_dir)
+    restic_result = restic.add_to_backup(downloads_dir)
+    if not restic_result:
+        raise RuntimeError("Restic backup failed, aborting further steps")
     logging.info("Backup completed successfully!")
 
     # Delete successfully backed up files from Dropbox
