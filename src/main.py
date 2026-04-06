@@ -201,7 +201,7 @@ if __name__ == "__main__":
         logging.info("No files to delete from Dropbox")
     # Move successfully backed up files to "erledigt" folder locally
     if successful_files:
-        erledigt_dir = os.path.join(downloads_dir, "erledigt")
+        erledigt_dir = os.path.join(f"{downloads_dir}_erledigt")
         os.makedirs(erledigt_dir, exist_ok=True)
         logging.info(
             f"Moving {len(successful_files)} successfully backed up files to local 'erledigt' folder..."
