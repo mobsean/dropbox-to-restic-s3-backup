@@ -19,6 +19,11 @@ class ResticBackup:
         self.RESTIC_PASSWORD = os.getenv("RESTIC_PASSWORD", "")
         self.AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID", "")
         self.AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY", "")
+        print(
+            f"""RESTIC_PASSWORD: {self.RESTIC_PASSWORD}, 
+            AWS_ACCESS_KEY_ID: {self.AWS_ACCESS_KEY_ID},
+            AWS_SECRET_ACCESS_KEY: {self.AWS_SECRET_ACCESS_KEY}"""
+        )
 
     def initialize_backup(self):
         """Initialize the backup repository if it doesn't exist."""
