@@ -213,6 +213,7 @@ if __name__ == "__main__":
                     path_parts.append(dbx_subfolder)
                 path_parts.append(file_name)
                 path = "/" + "/".join(path_parts)
+                logging.info(f"Start delete {path}")
                 dbx.files_delete(path)
                 logging.info(f"Deleted {file_name} from Dropbox")
             except dropbox.exceptions.ApiError as err:
