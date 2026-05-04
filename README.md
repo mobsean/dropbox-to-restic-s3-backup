@@ -70,6 +70,9 @@ dropbox-to-restic-s3-backup/
    # Restic
    RESTIC_REPOSITORY=<s3:s3.example.com/bucket/path>
    RESTIC_PASSWORD=<secure-password>
+
+   # AWS S3 Buckets
+   buckets=bucket1,bucket2
    ```
 
 6. **Dropbox App konfigurieren:**
