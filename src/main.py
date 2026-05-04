@@ -8,9 +8,10 @@ import time
 from datetime import datetime
 
 import dropbox
-from dotenv import load_dotenv
-from restic_backup import ResticBackup
 import requests
+from restic_backup import ResticBackup
+from aws_s3_bucket_manager import move_everything_to_deep_archive
+from dotenv import load_dotenv
 
 load_dotenv()
 
@@ -239,3 +240,7 @@ if __name__ == "__main__":
         logging.info("Local file moving completed!")
 
     dbx.close()
+
+    logging.info("Moving everything to S3 DEEP_ARCHIVE...")
+    move_everything_to_deep_archive()
+    logging.info("All operations completed successfully!")
