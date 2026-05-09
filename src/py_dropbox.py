@@ -197,7 +197,7 @@ def move_successfully_backed_up_files(successful_files, year_dir, erledigt_dir):
 
         os.makedirs(erledigt_dir, exist_ok=True)
         logging.info(
-            f"Moving {len(successful_files)} successfully backed up files to local 'erledigt' folder..."
+            f"Moving {len(successful_files)} successfully backed up files to local '{erledigt_dir}'..."
         )
         for file_name in successful_files:
             src_path = os.path.join(year_dir, file_name)
