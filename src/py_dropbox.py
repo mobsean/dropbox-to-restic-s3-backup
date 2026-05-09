@@ -191,7 +191,9 @@ def delete_files_from_dropbox(successful_files: list, dbx, dbx_folder, dbx_subfo
         logging.info("No files to delete from Dropbox")
 
 
-def move_successfully_backed_up_files(successful_files, year_dir, erledigt_dir):
+def move_successfully_backed_up_files(
+    successful_files, download_local_dir, erledigt_dir
+):
     """Move successfully backed up files to "erledigt" folder locally."""
     if successful_files:
 
@@ -200,11 +202,15 @@ def move_successfully_backed_up_files(successful_files, year_dir, erledigt_dir):
             f"Moving {len(successful_files)} successfully backed up files to local '{erledigt_dir}'..."
         )
         for file_name in successful_files:
+            year_prefix = int(file_name[:4])
+            year_dir = os.path.join(download_local_dir, str(year_prefix))
             src_path = os.path.join(year_dir, file_name)
             dst_path = os.path.join(erledigt_dir, file_name)
             try:
                 os.rename(src_path, dst_path)
-                logging.info(f"Moved {file_name} to erledigt folder")
+                logging.info(f"Moved {file_name} to {erledigt_dir} folder")
             except OSError as err:
-                logging.info(f"Error moving {file_name} to erledigt folder: {err}")
+                logging.error(
+                    f"Error moving {file_name} to {erledigt_dir} folder: {err}"
+                )
         logging.info("Local file moving completed!")

@@ -57,7 +57,11 @@ if __name__ == "__main__":
     #
     # delete_files_from_dropbox(successful_files, dbx, dbx_folder, dbx_subfolder)
     erledigt_dir = os.path.join(f"{downloads_dir}_erledigt")
-    move_successfully_backed_up_files(successful_files, dbx_folder, erledigt_dir)
+    move_successfully_backed_up_files(
+        successful_files=successful_files,
+        download_local_dir=downloads_dir,
+        erledigt_dir=erledigt_dir,
+    )
     #
     # dbx.close()
     #
