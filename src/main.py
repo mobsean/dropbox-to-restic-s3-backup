@@ -1,5 +1,6 @@
 """dropbox-to-restic-s3-backup"""
 
+import hashlib
 import logging
 import os
 import shutil
@@ -16,6 +17,16 @@ from py_dropbox import (
 )
 from restic_backup import ResticBackup
 from aws_s3_bucket_manager import move_everything_to_deep_archive_in_s3
+
+
+def calculate_file_hash(file_path: str, algorithm: str = "sha256") -> str:
+    """Calculate a file hash for copy verification."""
+    hash_obj = hashlib.new(algorithm)
+    with open(file_path, "rb") as f:
+        for chunk in iter(lambda: f.read(8192), b""):
+            hash_obj.update(chunk)
+    return hash_obj.hexdigest()
+
 
 if __name__ == "__main__":
     logs_dir = "logs"
@@ -76,7 +87,7 @@ if __name__ == "__main__":
         logging.warning(
             "Mount %s not available yet. Waiting 30 seconds...", mobin_mount
         )
-        time.sleep(30)
+        time.sleep(300)
 
     target_dir = os.path.join(mobin_mount, os.path.basename(erledigt_dir))
     logging.info(f"Copying files from {erledigt_dir} to {target_dir}")
@@ -92,5 +103,19 @@ if __name__ == "__main__":
             dst_path = os.path.join(dest_root, filename)
             logging.info(f"Copying {src_path} -> {dst_path}")
             shutil.copy2(src_path, dst_path)
+
+            src_hash = calculate_file_hash(src_path)
+            dst_hash = calculate_file_hash(dst_path)
+            if src_hash != dst_hash:
+                logging.error(
+                    "Hash mismatch after copy for %s: src=%s dst=%s",
+                    filename,
+                    src_hash,
+                    dst_hash,
+                )
+                raise RuntimeError(
+                    f"Hash mismatch for {filename} after copy to {dst_path}"
+                )
+            logging.info("Verified copy for %s (%s)", filename, src_hash)
 
     logging.info(f"Finished copying erledigt files to {target_dir}")
