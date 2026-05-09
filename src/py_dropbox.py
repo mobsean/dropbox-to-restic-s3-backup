@@ -115,9 +115,10 @@ def calculate_content_hash(file_path):
     return content_hash
 
 
-def download_files(download_local_dir, listing):
+def download_files(download_local_dir, listing, dbx, dbx_folder, dbx_subfolder):
     successful_files = []
-    for file_name, metadata in listing.items():
+    for i, (file_name, metadata) in enumerate(listing.items()):
+        logging.info(f"{i / len(listing)* 100:.2f}% - {i} / {len(listing)}")
         year_prefix = None
         try:
             year_prefix = int(file_name[:4])
@@ -193,7 +194,7 @@ def delete_files_from_dropbox(successful_files: list, dbx, dbx_folder, dbx_subfo
 def move_successfully_backed_up_files(successful_files, year_dir, erledigt_dir):
     """Move successfully backed up files to "erledigt" folder locally."""
     if successful_files:
-        
+
         os.makedirs(erledigt_dir, exist_ok=True)
         logging.info(
             f"Moving {len(successful_files)} successfully backed up files to local 'erledigt' folder..."
