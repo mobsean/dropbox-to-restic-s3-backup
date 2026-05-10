@@ -1,6 +1,5 @@
 """dropbox-to-restic-s3-backup"""
 
-import hashlib
 import logging
 import os
 import shutil
@@ -22,6 +21,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 MOUNT_FOLDER = os.getenv("MOUNT_FOLDER")
+DOWNLOADS_DIR = "Dropbox_Bilder"
+DBX_FOLDER = "Kamera-Uploads"
 
 if __name__ == "__main__":
     logs_dir = "logs"
@@ -38,44 +39,40 @@ if __name__ == "__main__":
     TOKEN = get_access_token()
     dbx = dropbox.Dropbox(TOKEN)
 
-    downloads_dir = "Dropbox_Bilder"
-
-    dbx_folder = "Kamera-Uploads"
-    dbx_subfolder = ""
-    listing = list_folder(dbx, dbx_folder, dbx_subfolder)
+    listing = list_folder(dbx, DBX_FOLDER)
     logging.info(f"{len(listing)} files")
 
     successful_files = download_files(
-        download_local_dir=downloads_dir,
+        download_local_dir=DOWNLOADS_DIR,
         listing=listing,
         dbx=dbx,
-        dbx_folder=dbx_folder,
-        dbx_subfolder=dbx_subfolder,
+        dbx_folder=DBX_FOLDER,
     )
 
-    # logging.info(f"Adding {downloads_dir} to restic backup...")
+    # logging.info(f"Adding {DOWNLOADS_DIR} to restic backup...")
     # restic = ResticBackup()
-    # restic_result = restic.add_to_backup(downloads_dir)
+    # restic_result = restic.add_to_backup(DOWNLOADS_DIR)
     # if not restic_result:
     #    logging.error("Restic backup failed, aborting further steps")
     #    raise RuntimeError("Restic backup failed, aborting further steps")
     # logging.info("Backup completed successfully!")
-    #
-    # delete_files_from_dropbox(successful_files, dbx, dbx_folder, dbx_subfolder)
-    erledigt_dir = os.path.join(f"{downloads_dir}_erledigt")
+
+    # delete_files_from_dropbox(successful_files, dbx, DBX_FOLDER)
+    erledigt_dir = os.path.join(f"{DOWNLOADS_DIR}_erledigt")
     move_successfully_backed_up_files(
         successful_files=successful_files,
-        download_local_dir=downloads_dir,
+        download_local_dir=DOWNLOADS_DIR,
         erledigt_dir=erledigt_dir,
     )
-    #
-    # dbx.close()
-    #
+
+    dbx.close()
+
     # logging.info("Moving everything to S3 DEEP_ARCHIVE...")
     # move_everything_to_deep_archive_in_s3()
     # logging.info("All operations completed successfully!")
-    #
-    # copy files from erledigt_dir to MOUNT_FOLDER, this mount is not always available. so we wait until it is ready.
+
+    # copy files from erledigt_dir to MOUNT_FOLDER, this mount is not always available.
+    # so we wait until it is ready.
     logging.info(f"Waiting for mount {MOUNT_FOLDER}")
     while not os.path.exists(MOUNT_FOLDER):
         logging.info(f"Mount {MOUNT_FOLDER} not available yet. Waiting 30 seconds...")

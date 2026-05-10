@@ -40,12 +40,13 @@ def get_access_token():
     return token
 
 
-def list_folder(dbx, folder, subfolder):
+def list_folder(dbx, folder):
     """List a folder.
 
     Return a dict mapping unicode filenames to
     FileMetadata|FolderMetadata entries.
     """
+    subfolder = ""
     path = "/%s/%s" % (folder, subfolder.replace(os.path.sep, "/"))
     while "//" in path:
         path = path.replace("//", "/")
@@ -63,11 +64,12 @@ def list_folder(dbx, folder, subfolder):
         return rv
 
 
-def download(dbx, folder, subfolder, name):
+def download(dbx, folder, name):
     """Download a file.
 
     Return the bytes of the file, or None if it doesn't exist.
     """
+    subfolder = ""
     path = "/%s/%s/%s" % (folder, subfolder.replace(os.path.sep, "/"), name)
     while "//" in path:
         path = path.replace("//", "/")
@@ -115,7 +117,8 @@ def calculate_content_hash(file_path):
     return content_hash
 
 
-def download_files(download_local_dir, listing, dbx, dbx_folder, dbx_subfolder):
+def download_files(download_local_dir, listing, dbx, dbx_folder):
+    """Download Files from Dropbox to Local. return list of successful files downloaded."""
     successful_files = []
     for i, (file_name, metadata) in enumerate(listing.items()):
         logging.info(f"{i / len(listing)* 100:.2f}% - {i} / {len(listing)}")
@@ -149,7 +152,7 @@ def download_files(download_local_dir, listing, dbx, dbx_folder, dbx_subfolder):
                 successful_files.append(file_name)
                 continue
 
-        res = download(dbx, dbx_folder, dbx_subfolder, file_name)
+        res = download(dbx, dbx_folder, file_name)
         with open(local_path, "wb") as f:
             f.write(res)
 
@@ -167,7 +170,7 @@ def download_files(download_local_dir, listing, dbx, dbx_folder, dbx_subfolder):
     return successful_files
 
 
-def delete_files_from_dropbox(successful_files: list, dbx, dbx_folder, dbx_subfolder):
+def delete_files_from_dropbox(successful_files: list, dbx, dbx_folder):
     """Delete successfully backed up files from Dropbox."""
     if successful_files:
         logging.info(
@@ -177,8 +180,6 @@ def delete_files_from_dropbox(successful_files: list, dbx, dbx_folder, dbx_subfo
             try:
                 # Construct path correctly, avoiding double slashes
                 path_parts = [dbx_folder]
-                if dbx_subfolder:
-                    path_parts.append(dbx_subfolder)
                 path_parts.append(file_name)
                 path = "/" + "/".join(path_parts)
                 logging.info(f"Start delete {path}")
