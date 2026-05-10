@@ -17,6 +17,11 @@ from py_dropbox import (
 )
 from restic_backup import ResticBackup
 from aws_s3_bucket_manager import move_everything_to_deep_archive_in_s3
+from dotenv import load_dotenv
+
+load_dotenv()
+
+MOUNT_FOLDER = os.getenv("MOUNT_FOLDER")
 
 
 def calculate_file_hash(file_path: str, algorithm: str = "sha256") -> str:
@@ -80,16 +85,13 @@ if __name__ == "__main__":
     # move_everything_to_deep_archive_in_s3()
     # logging.info("All operations completed successfully!")
     #
-    # copy files from erledigt_dir to /mnt/mobin, this mount is not always available. so we wait until it is ready.
-    mobin_mount = "/mnt/mobin"
-    logging.info("Waiting for mount %s", mobin_mount)
-    while not os.path.exists(mobin_mount):
-        logging.warning(
-            "Mount %s not available yet. Waiting 30 seconds...", mobin_mount
-        )
+    # copy files from erledigt_dir to MOUNT_FOLDER, this mount is not always available. so we wait until it is ready.
+    logging.info(f"Waiting for mount {MOUNT_FOLDER}")
+    while not os.path.exists(MOUNT_FOLDER):
+        logging.info(f"Mount {MOUNT_FOLDER} not available yet. Waiting 30 seconds...")
         time.sleep(300)
 
-    target_dir = os.path.join(mobin_mount, os.path.basename(erledigt_dir))
+    target_dir = os.path.join(MOUNT_FOLDER, os.path.basename(erledigt_dir))
     logging.info(f"Copying files from {erledigt_dir} to {target_dir}")
     for root, dirs, files in os.walk(erledigt_dir):
         rel_root = os.path.relpath(root, erledigt_dir)
