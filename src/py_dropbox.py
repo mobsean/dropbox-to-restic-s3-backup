@@ -121,7 +121,7 @@ def download_files(download_local_dir, listing, dbx, dbx_folder):
     """Download Files from Dropbox to Local. return list of successful files downloaded."""
     successful_files = []
     for i, (file_name, metadata) in enumerate(listing.items()):
-        logging.info(f"{i / len(listing)* 100:.2f}% - {i} / {len(listing)}")
+        logging.info(f"{(i+1) / len(listing)* 100:.2f}% - {i+1} / {len(listing)}")
         year_prefix = None
         try:
             year_prefix = int(file_name[:4])
