@@ -49,15 +49,15 @@ if __name__ == "__main__":
         dbx_folder=DBX_FOLDER,
     )
 
-    # logging.info(f"Adding {DOWNLOADS_DIR} to restic backup...")
-    # restic = ResticBackup()
-    # restic_result = restic.add_to_backup(DOWNLOADS_DIR)
-    # if not restic_result:
-    #    logging.error("Restic backup failed, aborting further steps")
-    #    raise RuntimeError("Restic backup failed, aborting further steps")
-    # logging.info("Backup completed successfully!")
+    logging.info(f"Adding {DOWNLOADS_DIR} to restic backup...")
+    restic = ResticBackup()
+    restic_result = restic.add_to_backup(DOWNLOADS_DIR)
+    if not restic_result:
+        logging.error("Restic backup failed, aborting further steps")
+        raise RuntimeError("Restic backup failed, aborting further steps")
+    logging.info("Backup completed successfully!")
 
-    # delete_files_from_dropbox(successful_files, dbx, DBX_FOLDER)
+    delete_files_from_dropbox(successful_files, dbx, DBX_FOLDER)
     erledigt_dir = os.path.join(f"{DOWNLOADS_DIR}_erledigt")
     move_successfully_backed_up_files(
         successful_files=successful_files,
@@ -67,9 +67,9 @@ if __name__ == "__main__":
 
     dbx.close()
 
-    # logging.info("Moving everything to S3 DEEP_ARCHIVE...")
-    # move_everything_to_deep_archive_in_s3()
-    # logging.info("All operations completed successfully!")
+    logging.info("Moving everything to S3 DEEP_ARCHIVE...")
+    move_everything_to_deep_archive_in_s3()
+    logging.info("All operations completed successfully!")
 
     # copy files from erledigt_dir to MOUNT_FOLDER, this mount is not always available.
     # so we wait until it is ready.
