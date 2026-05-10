@@ -103,5 +103,7 @@ if __name__ == "__main__":
                     f"Hash mismatch for {filename} after copy to {dst_path}"
                 )
             logging.info(f"Verified copy for {filename} ({src_hash})")
+            os.remove(src_path)
+            logging.info(f"Deleted local source file {src_path}")
 
     logging.info(f"Finished copying erledigt files to {target_dir}")
