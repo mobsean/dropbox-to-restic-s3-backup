@@ -73,6 +73,8 @@ dropbox-to-restic-s3-backup/
 
    # AWS S3 Buckets
    buckets=bucket1,bucket2
+
+   MOUNT_FOLDER=/mnt/mobsean
    ```
 
 6. **Dropbox App konfigurieren:**

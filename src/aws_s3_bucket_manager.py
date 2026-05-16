@@ -30,7 +30,7 @@ def toDeepArchive(client, bucket, key):
     )
 
 
-def move_everything_to_deep_archive():
+def move_everything_to_deep_archive_in_s3():
     for bucket in BUCKETS:
         logging.info(f"bucket: {bucket}")
 
@@ -61,5 +61,5 @@ def move_everything_to_deep_archive():
 
 if __name__ == "__main__":
     logging.info("Starting to move everything to DEEP_ARCHIVE...")
-    move_everything_to_deep_archive()
+    move_everything_to_deep_archive_in_s3()
     logging.info("finished.")

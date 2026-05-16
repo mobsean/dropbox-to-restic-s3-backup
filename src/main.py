@@ -1,125 +1,28 @@
 """dropbox-to-restic-s3-backup"""
 
-import contextlib
-import hashlib
 import logging
 import os
+import shutil
 import time
 from datetime import datetime
-
 import dropbox
-import requests
+from py_dropbox import (
+    download_files,
+    get_access_token,
+    list_folder,
+    delete_files_from_dropbox,
+    move_successfully_backed_up_files,
+    calculate_content_hash,
+)
 from restic_backup import ResticBackup
-from aws_s3_bucket_manager import move_everything_to_deep_archive
+from aws_s3_bucket_manager import move_everything_to_deep_archive_in_s3
 from dotenv import load_dotenv
 
 load_dotenv()
 
-
-def get_access_token():
-    """Erzeugt aus dem Refresh Token einen neuen Access Token."""
-    DROPBOX_TOKEN_URL = "https://api.dropbox.com/oauth2/token"
-    DROPBOX_REFRESH_TOKEN = os.getenv("DROPBOX_REFRESH_TOKEN")
-    DROPBOX_CLIENT_ID = os.getenv("DROPBOX_CLIENT_ID")
-    DROPBOX_CLIENT_SECRET = os.getenv("DROPBOX_CLIENT_SECRET")
-
-    if not all([DROPBOX_REFRESH_TOKEN, DROPBOX_CLIENT_ID, DROPBOX_CLIENT_SECRET]):
-        logging.error("Fehlende Dropbox-Umgebungsvariablen")
-        raise ValueError("Fehlende Dropbox-Umgebungsvariablen")
-
-    data = {
-        "grant_type": "refresh_token",
-        "refresh_token": DROPBOX_REFRESH_TOKEN,
-        "client_id": DROPBOX_CLIENT_ID,
-        "client_secret": DROPBOX_CLIENT_SECRET,
-    }
-
-    try:
-        r = requests.post(DROPBOX_TOKEN_URL, data=data, timeout=60)
-        r.raise_for_status()
-    except requests.RequestException as e:
-        logging.error(f"Error fetching Dropbox access token: {e}")
-        raise
-
-    token = r.json()["access_token"]
-    return token
-
-
-def list_folder(dbx, folder, subfolder):
-    """List a folder.
-
-    Return a dict mapping unicode filenames to
-    FileMetadata|FolderMetadata entries.
-    """
-    path = "/%s/%s" % (folder, subfolder.replace(os.path.sep, "/"))
-    while "//" in path:
-        path = path.replace("//", "/")
-    path = path.rstrip("/")
-    try:
-        with stopwatch("list_folder"):
-            res = dbx.files_list_folder(path)
-    except dropbox.exceptions.ApiError as err:
-        logging.error(f"Folder listing failed for {path} -- assumed empty: {err}")
-        return {}
-    else:
-        rv = {}
-        for entry in res.entries:
-            rv[entry.name] = entry
-        return rv
-
-
-def download(dbx, folder, subfolder, name):
-    """Download a file.
-
-    Return the bytes of the file, or None if it doesn't exist.
-    """
-    path = "/%s/%s/%s" % (folder, subfolder.replace(os.path.sep, "/"), name)
-    while "//" in path:
-        path = path.replace("//", "/")
-    with stopwatch("download"):
-        try:
-            md, res = dbx.files_download(path)
-        except dropbox.exceptions.HttpError as err:
-            logging.error(f"*** HTTP error {err}")
-            return None
-    data = res.content
-    # print(len(data), 'bytes; md:', md)
-    return data
-
-
-@contextlib.contextmanager
-def stopwatch(message):
-    """Context manager to print how long a block of code took."""
-    t0 = time.time()
-    try:
-        yield
-    finally:
-        t1 = time.time()
-        logging.info(f"Total elapsed time for {message}: {t1 - t0:.3f}")
-
-
-def calculate_content_hash(file_path):
-    """Calculate Dropbox content hash for a file.
-
-    Splits file into 4MB blocks, hashes each with SHA-256,
-    concatenates the hashes, then hashes the result.
-    """
-    BLOCK_SIZE = 4 * 1024 * 1024  # 4 MB
-    hashes = []
-
-    with open(file_path, "rb") as f:
-        while True:
-            block = f.read(BLOCK_SIZE)
-            if not block:
-                break
-            block_hash = hashlib.sha256(block).digest()
-            hashes.append(block_hash)
-
-    concatenated = b"".join(hashes)
-    content_hash = hashlib.sha256(concatenated).hexdigest()
-
-    return content_hash
-
+MOUNT_FOLDER = os.getenv("MOUNT_FOLDER")
+DOWNLOADS_DIR = "Dropbox_Bilder"
+DBX_FOLDER = "Kamera-Uploads"
 
 if __name__ == "__main__":
     logs_dir = "logs"
@@ -136,111 +39,71 @@ if __name__ == "__main__":
     TOKEN = get_access_token()
     dbx = dropbox.Dropbox(TOKEN)
 
-    downloads_dir = "Dropbox_Bilder"
-
-    dbx_folder = "Kamera-Uploads"
-    dbx_subfolder = ""
-    listing = list_folder(dbx, dbx_folder, dbx_subfolder)
+    listing = list_folder(dbx, DBX_FOLDER)
     logging.info(f"{len(listing)} files")
 
-    successful_files = []  # Track successfully downloaded and verified files
+    successful_files = download_files(
+        download_local_dir=DOWNLOADS_DIR,
+        listing=listing,
+        dbx=dbx,
+        dbx_folder=DBX_FOLDER,
+    )
 
-    for file_name, metadata in listing.items():
-        year_prefix = None
-        try:
-            year_prefix = int(file_name[:4])
-        except (ValueError, IndexError):
-            logging.info(f"Skipping {file_name} (kein Jahrespräfix)")
-            continue
-
-        if year_prefix < 2025:
-            logging.info(f"Skipping {file_name} (Jahr {year_prefix} < 2025)")
-            continue
-
-        if not isinstance(metadata, dropbox.files.FileMetadata):
-            logging.info(f"Skipping {file_name} (kein FileMetadata)")
-            continue
-
-        year_dir = os.path.join(downloads_dir, str(year_prefix))
-        os.makedirs(year_dir, exist_ok=True)
-        local_path = os.path.join(year_dir, file_name)
-
-        # Check if file already exists locally and if content hash matches
-        if os.path.exists(local_path):
-            expected_hash = metadata.content_hash
-            calculated_hash = calculate_content_hash(local_path)
-            if calculated_hash == expected_hash:
-                logging.info(
-                    f"Hash matches for existing file {file_name}, skip download"
-                )
-                successful_files.append(file_name)
-                continue
-
-        res = download(dbx, dbx_folder, dbx_subfolder, file_name)
-        with open(local_path, "wb") as f:
-            f.write(res)
-
-        expected_hash = metadata.content_hash
-        calculated_hash = calculate_content_hash(local_path)
-
-        if calculated_hash != expected_hash:
-            logging.error(
-                f"Hash mismatch for {file_name}: expected {expected_hash}, got {calculated_hash}"
-            )
-            raise ValueError(
-                f"Hash mismatch for {file_name}: expected {expected_hash}, got {calculated_hash}"
-            )
-        successful_files.append(file_name)
-
-    # Add the year folder to restic backup
-    logging.info(f"Adding {downloads_dir} to restic backup...")
+    logging.info(f"Adding {DOWNLOADS_DIR} to restic backup...")
     restic = ResticBackup()
-    restic_result = restic.add_to_backup(downloads_dir)
+    restic_result = restic.add_to_backup(DOWNLOADS_DIR)
     if not restic_result:
         logging.error("Restic backup failed, aborting further steps")
         raise RuntimeError("Restic backup failed, aborting further steps")
     logging.info("Backup completed successfully!")
 
-    # Delete successfully backed up files from Dropbox
-    if successful_files:
-        logging.info(
-            f"Deleting {len(successful_files)} successfully backed up files from Dropbox..."
-        )
-        for file_name in successful_files:
-            try:
-                # Construct path correctly, avoiding double slashes
-                path_parts = [dbx_folder]
-                if dbx_subfolder:
-                    path_parts.append(dbx_subfolder)
-                path_parts.append(file_name)
-                path = "/" + "/".join(path_parts)
-                logging.info(f"Start delete {path}")
-                dbx.files_delete(path)
-                logging.info(f"Deleted {file_name} from Dropbox")
-            except dropbox.exceptions.ApiError as err:
-                logging.info(f"Error deleting {file_name} from Dropbox: {err}")
-        logging.info("File deletion from Dropbox completed!")
-    else:
-        logging.info("No files to delete from Dropbox")
-    # Move successfully backed up files to "erledigt" folder locally
-    if successful_files:
-        erledigt_dir = os.path.join(f"{downloads_dir}_erledigt")
-        os.makedirs(erledigt_dir, exist_ok=True)
-        logging.info(
-            f"Moving {len(successful_files)} successfully backed up files to local 'erledigt' folder..."
-        )
-        for file_name in successful_files:
-            src_path = os.path.join(year_dir, file_name)
-            dst_path = os.path.join(erledigt_dir, file_name)
-            try:
-                os.rename(src_path, dst_path)
-                logging.info(f"Moved {file_name} to erledigt folder")
-            except OSError as err:
-                logging.info(f"Error moving {file_name} to erledigt folder: {err}")
-        logging.info("Local file moving completed!")
+    delete_files_from_dropbox(successful_files, dbx, DBX_FOLDER)
+    erledigt_dir = os.path.join(f"{DOWNLOADS_DIR}_erledigt")
+    move_successfully_backed_up_files(
+        successful_files=successful_files,
+        download_local_dir=DOWNLOADS_DIR,
+        erledigt_dir=erledigt_dir,
+    )
 
     dbx.close()
 
     logging.info("Moving everything to S3 DEEP_ARCHIVE...")
-    move_everything_to_deep_archive()
+    move_everything_to_deep_archive_in_s3()
     logging.info("All operations completed successfully!")
+
+    # copy files from erledigt_dir to MOUNT_FOLDER, this mount is not always available.
+    # so we wait until it is ready.
+    logging.info(f"Waiting for mount {MOUNT_FOLDER}")
+    while not os.path.exists(MOUNT_FOLDER):
+        logging.info(f"Mount {MOUNT_FOLDER} not available yet. Waiting 30 seconds...")
+        time.sleep(300)
+
+    target_dir = os.path.join(MOUNT_FOLDER, os.path.basename(erledigt_dir))
+    logging.info(f"Copying files from {erledigt_dir} to {target_dir}")
+    for root, dirs, files in os.walk(erledigt_dir):
+        rel_root = os.path.relpath(root, erledigt_dir)
+        dest_root = (
+            target_dir if rel_root == "." else os.path.join(target_dir, rel_root)
+        )
+        os.makedirs(dest_root, exist_ok=True)
+
+        for filename in files:
+            src_path = os.path.join(root, filename)
+            dst_path = os.path.join(dest_root, filename)
+            logging.info(f"Copying {src_path} -> {dst_path}")
+            shutil.copy2(src_path, dst_path)
+
+            src_hash = calculate_content_hash(src_path)
+            dst_hash = calculate_content_hash(dst_path)
+            if src_hash != dst_hash:
+                logging.error(
+                    "Hash mismatch after copy for {filename}: src={src_hash} dst={dst_hash}"
+                )
+                raise RuntimeError(
+                    f"Hash mismatch for {filename} after copy to {dst_path}"
+                )
+            logging.info(f"Verified copy for {filename} ({src_hash})")
+            os.remove(src_path)
+            logging.info(f"Deleted local source file {src_path}")
+
+    logging.info(f"Finished copying erledigt files to {target_dir}")
